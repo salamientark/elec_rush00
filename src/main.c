@@ -6,7 +6,7 @@
 /*   By: dbaladro <dbaladro@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/03/03 16:31:16 by dbaladro          #+#    #+#             */
-/*   Updated: 2025/03/08 17:05:06 by fguarrac         ###   ########.fr       */
+/*   Updated: 2025/03/08 18:39:42 by fguarrac         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -30,10 +30,12 @@
 //	{
 //		PORTC ^= (1u << PORTC4);
 //		_delay_ms(1000);
+//		uart_printstr("I'm master\r\n");
 //	}
 //	else
 //	{
 //		i2c_slave_init(SLAVEADDR);
+//		uart_printstr("I'm slave\r\n");
 //	}
 //}
 
@@ -63,9 +65,9 @@ void i2c_stop(void) {
 void i2c_slave_init(uint8_t address){
     TWAR = (address << 1); /* load address into TWI address register */
     //TWAR |= (1<<TWGCE);  /* General call recognition enable */
-    TWAR &= 0b11111110;  /* General call recognition enable */
+    //TWAR &= 0b11111110;  /* General call recognition enable */
     // TWCR=0x0;   //WARNING
-    TWCR = (1<<TWEA) | (1<<TWEN); /* set the TWCR to enable address matching and enable TWI, clear TWINT, enable TWI interrupt */
+    TWCR = (1<<TWEA) | (1<<TWEN) | (1u << TWIE); /* set the TWCR to enable address matching and enable TWI, clear TWINT, enable TWI interrupt */
 }
 /**
  * @brief Send address packet
@@ -215,6 +217,7 @@ int main() {
 	i2c_init();
 	i2c_slave_init(0x42);
 	uart_init();
+	SREG |= (1u << 7);
 
 	while (1) {
 		// i2c_ping();
