@@ -40,6 +40,12 @@ void i2c_stop(void) {
 													   * generate stop condition */
 }
 
+void i2c_slave_init(uint8_t address){
+    TWAR = (address << 1); /* load address into TWI address register */
+    TWAR = (1<<TWGCE);  /* General call recognition enable */
+    // TWCR=0x0;   //WARNING
+    TWCR = (1<<TWIE) | (1<<TWEA) | (1<<TWINT) | (1<<TWEN); /* set the TWCR to enable address matching and enable TWI, clear TWINT, enable TWI interrupt */
+}
 /**
  * @brief Send address packet
  *
