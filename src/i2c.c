@@ -6,7 +6,7 @@
 /*   By: dbaladro <dbaladro@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/03/08 17:27:28 by dbaladro          #+#    #+#             */
-/*   Updated: 2025/03/08 18:35:44 by dbaladro         ###   ########.fr       */
+/*   Updated: 2025/03/08 18:42:23 by dbaladro         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -25,13 +25,13 @@ void i2c_init(void) {
  * @brief Start I2C communication
  */
 void i2c_start(void) {
-	uart_printstr("Starting I2C communication\r\n");
+	// uart_printstr("Starting I2C communication\r\n");
 	TWCR = (1 << TWINT) | (1 << TWSTA) | (1 << TWEN); /* Enable TWI
 																				* Clear TWINT flag
 																				* generate start condition */
-	uart_printstr("Waiting to start I2C communication\r\n");
+	// uart_printstr("Waiting to start I2C communication\r\n");
 	while(!(TWCR & (1 << TWINT))) {} /* Wait for TWI flag set */
-	uart_printstr("start ok\r\n");
+	// uart_printstr("start ok\r\n");
 }
 
 /**

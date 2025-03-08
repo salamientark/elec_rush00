@@ -18,20 +18,21 @@
 /*                                 INTERRUPTS                                 */
 /* ************************************************************************** */
 ISR(TWI_vect) {
+	uint8_t status = TWSR & 0xF8;
 	uint8_t	data= 0;
-	switch (TWSR & 0xF8) {
+	TWCR |= (1 << TWINT);
+	switch (status) {
 		case 0x60:
-			uart_printstr("SLA+W received, ACK returned\r\n");
+			// uart_printstr("SLA+W received, ACK returned\r\n");
 			break;
 		case 0x68:
-			uart_printstr("Arbitration lost, own SLA+W received, ACK returned\r\n");
+			// uart_printstr("Arbitration lost, own SLA+W received, ACK returned\r\n");
 			break;
 		case 0x70:
-			uart_printstr("General call received, ACK returned\r\n");
+			// uart_printstr("General call received, ACK returned\r\n");
 			break;
 		case 0x78:
-			uart_printstr("Arbitration lost, General call received, ACK returned\r\n");
-            TWCR = (1 << TWEN) | (1 << TWEA) | (1 << TWIE);
+			// uart_printstr("Arbitration lost, General call received, ACK returned\r\n");
 			break;
 		case 0x80 :
 			data = i2c_read_ack();
@@ -42,21 +43,20 @@ ISR(TWI_vect) {
 			uart_printstr("address call, Data received, NACK returned\r\n");
 			break;
 		case 0x90:
-			uart_printstr("General call, Data received, ACK returned\r\n");
-            TWCR = (1 << TWEN) | (1 << TWEA) | (1 << TWIE);
+			// uart_printstr("General call, Data received, ACK returned\r\n");
 			break;
 		case 0x98:
-			uart_printstr("General call, Data received, NACK returned\r\n");
+			// uart_printstr("General call, Data received, NACK returned\r\n");
 			break;
-		case 0xA0:
-			uart_printstr("Stop or repeated start condition received while selected\r\n");
-            TWCR = (1 << TWEN) | (1 << TWEA) | (1 << TWIE);
+		case TW_SR_STOP :
+			// uart_printstr("Stop or repeated start condition received while selected\r\n");
 			break;
 		default:
 			uart_printstr("Error\r\n");
-            TWCR = (1 << TWEN) | (1 << TWEA) | (1 << TWIE);
 			break;
 	}
+	// TWCR |= (1 << TWINT);
+	// TWCR = (1 << TWINT) | (1 << TWEN) | (1 << TWEA) | (1 << TWIE);
 }
 
 /**
@@ -66,9 +66,8 @@ ISR(TWI_vect) {
  */
 void i2c_slave_init(uint8_t address){
     TWAR = (address << 1); /* load address into TWI address register */
-    TWAR = (1<<TWGCE);  /* General call recognition enable */
     // TWCR=0x0;   //WARNING
-    TWCR = (1<<TWIE) | (1<<TWEA) | (1<<TWINT) | (1<<TWEN); /* set the TWCR to enable address matching and enable TWI, clear TWINT, enable TWI interrupt */
+    TWCR = (1<<TWEA) | (1<<TWIE) | (1<<TWEN); /* set the TWCR to enable address matching and enable TWI, clear TWINT, enable TWI interrupt */
 }
 
 
@@ -78,23 +77,12 @@ void i2c_slave_init(uint8_t address){
 int main() {
 	i2c_init();
 	uart_init();
+	i2c_slave_init(0x42);
+	SREG |= (1 << 7); /* Enable global interrupts */
 
 	/* Lets ping */
 	while (1) {
-		i2c_start();
-		if ((TWSR & 0xF8) != START) { /* Check for errors */
-			i2c_stop();
-			uart_printstr("Error on i2c_start()\r\n");
-			continue ;
-		}
-		i2c_write(0x42); /* General Master receive mode */
-		i2c_write(0xBB);
-		i2c_stop();
-
-		/* Make mesurment */
-		uart_printstr("Mesurment\r\n");
-		_delay_ms(1000);
+		// _delay_ms(1000);
 	}
-
 	return (0);
 }
