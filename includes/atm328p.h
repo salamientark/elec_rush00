@@ -6,7 +6,7 @@
 /*   By: dbaladro <dbaladro@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/03/08 12:38:17 by dbaladro          #+#    #+#             */
-/*   Updated: 2025/03/08 17:44:36 by dbaladro         ###   ########.fr       */
+/*   Updated: 2025/03/08 19:43:39 by dbaladro         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -16,6 +16,7 @@
 # include <avr/io.h>
 # include <util/delay.h>
 # include <avr/interrupt.h>
+# include <util/twi.h>
 
 /* I2C MACRO */
 # define START 0x08 /* START code after START was send */
