@@ -97,6 +97,45 @@ uint8_t	i2c_read_nack(void) {
 
 }
 
+ISR(TWI_vect) {
+	switch (TWSR & 0xF8) {
+		case 0x60:
+			uart_printstr("SLA+W received, ACK returned\r\n");
+			break;
+		case 0x68:
+			uart_printstr("Arbitration lost, own SLA+W received, ACK returned\r\n");
+			break;
+		case 0x70:
+			uart_printstr("General call received, ACK returned\r\n");
+			break;
+		case 0x78:
+			uart_printstr("Arbitration lost, General call received, ACK returned\r\n");
+            TWCR = (1 << TWEN) | (1 << TWEA) | (1 << TWIE);
+			break;
+		case 0x80 :
+			uart_printstr("address call, Data received, ACK returned\r\n");
+			break;
+		case 0x88 :
+			uart_printstr("address call, Data received, NACK returned\r\n");
+			break;
+		case 0x90:
+			uart_printstr("General call, Data received, ACK returned\r\n");
+            TWCR = (1 << TWEN) | (1 << TWEA) | (1 << TWIE);
+			break;
+		case 0x98:
+			uart_printstr("General call, Data received, NACK returned\r\n");
+			break;
+		case 0xA0:
+			uart_printstr("Stop or repeated start condition received while selected\r\n");
+            TWCR = (1 << TWEN) | (1 << TWEA) | (1 << TWIE);
+			break;
+		default:
+			uart_printstr("Error\r\n");
+            TWCR = (1 << TWEN) | (1 << TWEA) | (1 << TWIE);
+			break;
+	}
+}
+
 /* ************************************************************************** */
 /*                                    MAIN                                    */
 /* ************************************************************************** */
@@ -124,7 +163,10 @@ static void uart_printhex(unsigned char c) {
 
 void i2c_ping(void) {
 	for (uint8_t i = 0 ;i < 128; i++) {
+		// uart_printstr("Ping addr: ");
 		_delay_ms(10);
+		uart_printhex(i);
+		uart_printstr("\r\n");
 		i2c_start();
 		if ((TWSR & 0xF8) != START) { /* Check for errors */
 			uart_printstr("Error on start\r\n");
@@ -140,10 +182,11 @@ void i2c_ping(void) {
 		}
 		uart_printstr("OK on addr ");
 		uart_printhex(i);
-		uart_printstr("\r\n");
 		i2c_stop();
-	}
+		uart_printstr("\r\nAfter stop");
 		uart_printstr("\r\n");
+	}
+	uart_printstr("\r\n");
 }
 
 
