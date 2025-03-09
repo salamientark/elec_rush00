@@ -6,7 +6,7 @@
 /*   By: dbaladro <dbaladro@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/03/03 16:31:16 by dbaladro          #+#    #+#             */
-/*   Updated: 2025/03/09 01:33:14 by dbaladro         ###   ########.fr       */
+/*   Updated: 2025/03/09 10:18:32 by dbaladro         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -144,7 +144,8 @@ void	i2c_arbitration(void)
 	else
 	{
 		g_status = GET_SLAVE;
-		i2c_slave_init(SLAVE_ADDR);
+		TWCR |= (1 << TWEA);
+		// i2c_slave_init(SLAVE_ADDR);
 		uart_printstr("change status to get slave\r\n");
 		// i2c_slave_init(SLAVE_ADDR);
 		// uint8_t data = i2c_read_ack();
@@ -189,8 +190,10 @@ void	wait(void) {
 		if (b1_state && b1_last_state == 0) {
 			if (g_status == GET_MASTER)
 				i2c_stop();
-			TWAR = 0x00; /* Disbale slave address */
-			TWCR = 0;
+			// TWAR = 0x00; /* Disbale slave address */
+
+			TWCR &= ~(1 << TWEA); /* Disable ACK */
+
 			b1_last_state = 1;
 			g_status = WAIT_START;
 			uart_printstr(" Change Status to WAIT_START\r\n");
@@ -222,6 +225,11 @@ void	wait(void) {
 int main() {
 	i2c_init();
 	uart_init();
+
+	/* Slave init */
+	TWAR = (SLAVE_ADDR << 1); /* load address into TWI address register */
+	TWCR = (1 << TWINT) | (1<<TWIE) | (1<<TWEN); /* set the TWCR to enable address matching and enable TWI, clear TWINT, enable TWI interrupt */
+
 	SREG |= (1 << 7); /* Enable global interrupts */
 
 	DDRB |= (1 << DDB1) | (1 << DDB0); /* Set pin 0 of port B as input */
