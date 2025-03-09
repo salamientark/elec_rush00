@@ -6,7 +6,7 @@
 /*   By: dbaladro <dbaladro@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/03/08 12:38:17 by dbaladro          #+#    #+#             */
-/*   Updated: 2025/03/09 15:56:26 by dbaladro         ###   ########.fr       */
+/*   Updated: 2025/03/09 19:46:59 by dbaladro         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -31,9 +31,10 @@
 # define GET_SLAVE 2
 # define READY 4
 # define START_COUNTER 5
+# define SEND_READY 6
 
 # define SLAVE_ADDR 0x42
-# define SLAVE_READY_TO_PLAY 0x01
+# define SLAVE_READY_TO_PLAY 0x10
 # define SLAVE_LOST 0xF0
 # define MASTER_LOST 0xF1
 

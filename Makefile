@@ -42,5 +42,8 @@ flash: hex
 both: flash
 	$(AVRDUDE) -c $(PROGRAMMER) -p m328p -b $(UART_BAUDRATE) -U flash:w:main.hex -P /dev/ttyUSB1
 
+screen: both
+	screen /dev/ttyUSB0 $(UART_BAUDRATE)
+
 clean :
 	rm main.hex main.bin

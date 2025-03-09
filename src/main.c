@@ -6,7 +6,7 @@
 /*   By: dbaladro <dbaladro@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/03/03 16:31:16 by dbaladro          #+#    #+#             */
-/*   Updated: 2025/03/09 17:30:23 by dbaladro         ###   ########.fr       */
+/*   Updated: 2025/03/09 20:45:36 by dbaladro         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -26,11 +26,38 @@ uint8_t	g_status = NONE; /* Define slave or mnaster */
 /* ************************************************************************** */
 ISR(TWI_vect) {
 	uint8_t status = TWSR & 0xF8;
+	TWCR &= ~(1 << TWIE); /* Disable TWI interrupt */
+	uint8_t data;
 	switch (status) {
-		case TW_ST_SLA_ACK:
+		case TW_MR_DATA_ACK:
+			if (g_role == MASTER) {
+				// TWCR &= ~(1 << TWIE);
+				data = i2c_read_ack();
+				uart_printstr("Master received: 0x");
+				uart_printhex(data);
+				uart_printstr("\r\n");
+				if (data == 0xBB) {
+					uart_printstr("OK\r\n");
+				}
+				
+				if (data == 0xFF){
+					// i2c_stop();
+					i2c_start();
+					i2c_write(SLAVE_ADDR << 1 | TW_READ);
+					TWCR |= (1 << TWIE);
+					uart_printstr("MASTER RESET\r\n");
+				}
+				TWCR = (1 << TWEN) | (1 << TWIE) | (1 << TWINT) | (1 << TWEA); // Clear interrupt flag, enable ACK
+				break ;
+			}
+		// case TW_ST_SLA_ACK:
 		case TW_SR_DATA_ACK:
-			if (g_status == READY) {
+			if (g_role == SLAVE && g_status == READY) {
 				uart_printstr("Slave ready YEAH");
+				// i2c_write(SLAVE_READY_TO_PLAY);
+				g_status = SEND_READY;
+				// TWDR = 0xBB;
+				uart_printstr("Slave ready to play\r\n");
 			}
 				// if (TWDR == SLAVE_LOST || TWDR == MASTER_LOST) {
 				// 	g_status = WAIT_START;
@@ -45,6 +72,18 @@ ISR(TWI_vect) {
             TWCR = (1 << TWEN) | (1 << TWIE) | (1 << TWINT) | (1 << TWEA); // Clear interrupt flag, enable ACK
 			break ;
 
+		case TW_SR_SLA_ACK:
+			TWCR = (1 << TWEN) | (0 << TWIE) | (1 << TWINT) | (1 << TWEA); // Clear interrupt flag, enable ACK
+			uart_printstr("SLAVE RECEIVE SEND DATA\r\n");
+			// i2c_write(SLAVE_READY_TO_PLAY);
+			// TWDR = 0xBB;
+			break ;
+		case TW_ST_SLA_ACK:
+			TWCR = (1 << TWEN) | (1 << TWIE) | (1 << TWINT) | (1 << TWEA); // Clear interrupt flag, enable ACK
+			// uart_printstr("SLAVE SEND DATA\r\n");
+			// TWDR = 0xBB;
+			// i2c_write(SLAVE_READY_TO_PLAY);
+			break ;
 		case TW_ST_DATA_ACK:
 			// if (g_status == SLAVE) {
 			// 	if (TWDR == SLAVE_LOST || TWDR == MASTER_LOST) {
@@ -55,7 +94,11 @@ ISR(TWI_vect) {
 			// 		g_status = SLAVE;
 			// 		uart_printstr("Change status to SLAVE\r\n");
 			// 	}
-				uart_printstr("Slave received: 0x");
+				uart_printstr("Slave transmitted data\r\n");
+				// data = TWDR;
+				// uart_printstr("Data received: 0x");
+				// uart_printhex(data);
+				uart_printstr("\r\n");
 			// }
             TWCR = (1 << TWEN) | (1 << TWIE) | (1 << TWINT) | (1 << TWEA); // Clear interrupt flag, enable ACK
 			break ;
@@ -63,6 +106,9 @@ ISR(TWI_vect) {
 			TWCR = (1 << TWEN) | (1 << TWIE) | (1 << TWINT) | (1 << TWEA); // Clear interrupt flag, enable ACK
 			break ;
 		default:
+			uart_printstr("=== INTERUPT CODE: ");
+			uart_printhex(status);
+			uart_printstr("\r\n");
             TWCR = (1 << TWEN) | (1 << TWIE) | (1 << TWINT) | (1 << TWEA); // Clear interrupt flag, enable ACK
 			uart_printstr("Error or default\r\n");
 			break;
@@ -122,9 +168,11 @@ void	get_role(void) {
 		_delay_ms(10);
 	}
 
-	if (g_role == SLAVE)
-		TWCR = (1 << TWEN) | (1 << TWIE) | (0 << TWINT) | (1 << TWEA); /* Clear interrupt flag, enable ACK */
-	if (g_role == MASTER)
+	if (g_role == SLAVE){
+		TWCR = (1 << TWEN) | (0 << TWIE) | (1 << TWINT) | (1 << TWEA); /* Clear interrupt flag, enable ACK */
+		SREG &= ~(1 << 7); /* Disable global interrupts */
+	}
+	if (g_role == MASTER) 
 		i2c_switch_master_receive();
 }
 
@@ -133,91 +181,109 @@ void	get_role(void) {
  * @brief Get ready to play
  */
 void	get_ready(void) {
-	uint8_t b1_last_state = 0;
+	// uint8_t b1_last_state = 0;
 	uint8_t b1_state = 0;
 	uart_printstr("Get ready to play\r\n");
+	if (g_role == MASTER)
+		TWCR |= (1 << TWINT) | (1 << TWIE); /* Enable TWI interrupt */
 	while (1) {
 		if (g_role == WAIT_START) {
 			uart_printstr("Change status to WAIT_START ===> WTF\r\n");
 			break ;
 		}
+
 		b1_state = getButtonStatus(PIND, 2);
-
-		if (!b1_state && b1_last_state == 1){ /* Repress */
-			if (g_role == MASTER) {
-				uart_printstr("Master pressed again\r\n");
-				/*
-				 * Switch to master transmitter
-				 * Send info that it lost
-				 * back to beginiing of the program */
-				// i2c_switch_master_transmit();
-				// i2c_write(MASTER_LOST);
-				// i2c_stop();
-				// g_status = WAIT_START;
-			}
-			else {
-				uart_printstr("slave pressed again\r\n");
-				// g_status = WAIT_START;
-				// TWDR = SLAVE_LOST;
-				// break ;
-			}
-		}
-
-		if (b1_state) { /* Unhold button */
-			b1_last_state = 1;
-
-			if (g_role == MASTER) { /* RELEASE BUTTON MASTER */
-				uart_printstr("Master released button\r\n");
-				// i2c_start();
-				// i2c_write(SLAVE_ADDR << 1 | TW_READ);
-				// TWCR |= (1 << TWEA);
-				// uint8_t status = TWSR & 0xF8;
-				// if (status != TW_START && status != TW_REP_START) {
-				// 	uart_printstr("Error on i2c_start()\r\n");
-				// 	return ;
-				// }
-				_delay_ms(50);
-				uint8_t data = i2c_read_nack();
-				if (data == SLAVE_READY_TO_PLAY) {
-					uart_printstr("MASTER is ready to play\r\n");
-					g_status = START_COUNTER;
-					// i2c_stop();
-					// break ;
-				}
-				if (data == SLAVE_LOST) { /* Loose */
-					uart_printstr("Slave lost\r\n");
-					g_role = WAIT_START;
-					g_status = NONE;
-					// return ;
-				}
-				uart_printstr("MASTER received data\r\n");
-			}
-
-
-			else { /* RELEASE BUTTON SLAVE */
-				uart_printstr("Slave released button\r\n");
-				g_status = READY;
-				// TWCR &= ~(1 << TWEA); /* Disable ACK */
-				// TWCR |= (1 << TWIE);
+		(void)b1_state;
+		if (g_role == SLAVE) {
+			uart_printstr("Inside Slave\r\n");
+			// TWCR &= ~(1 << TWIE); /* Disable TWI interrupt */
+			// SREG &= ~(1 << 7); /* Enable global interrupts */
+			if (g_status == SEND_READY) {
 				i2c_write(SLAVE_READY_TO_PLAY);
-
-
-				// TWDR = SLAVE_READY_TO_PLAY;
-				// TWCR |= (1 << TWINT) | (1 << TWEN); /* Enable TWI,
-				// 									* Clear TWINT flag */
-				// while(!(TWCR & (1 << TWINT))) {} /* Wait for TWI flag set */
-
-
-				if ((TWSR & 0xF8) == TW_ST_DATA_NACK) {
-					uart_printstr("Slave & master is ready to play\r\n");
-					/* Let's play */
-					// break ;
-				}
-				uart_printstr("Waiting for master\r\n");
 			}
-			_delay_ms(10);
-			
+			// if (b1_state)
+			// 	g_status = READY;
+			// while ((PINC & (1u << PINC4) && (PINC & (1u << PINC5)))) {}
+				// TWDR = SLAVE_READY_TO_PLAY;
 		}
+
+
+		//
+		// if (!b1_state && b1_last_state == 1){ /* Repress */
+		// 	if (g_role == MASTER) {
+		// 		uart_printstr("Master pressed again\r\n");
+		// 		/*
+		// 		 * Switch to master transmitter
+		// 		 * Send info that it lost
+		// 		 * back to beginiing of the program */
+		// 		// i2c_switch_master_transmit();
+		// 		// i2c_write(MASTER_LOST);
+		// 		// i2c_stop();
+		// 		// g_status = WAIT_START;
+		// 	}
+		// 	else {
+		// 		uart_printstr("slave pressed again\r\n");
+		// 		// g_status = WAIT_START;
+		// 		// TWDR = SLAVE_LOST;
+		// 		// break ;
+		// 	}
+		// }
+		//
+		// if (b1_state) { /* Unhold button */
+		// 	b1_last_state = 1;
+		//
+		// 	if (g_role == MASTER) { /* RELEASE BUTTON MASTER */
+		// 		uart_printstr("Master released button\r\n");
+		// 		// i2c_start();
+		// 		// i2c_write(SLAVE_ADDR << 1 | TW_READ);
+		// 		// TWCR |= (1 << TWEA);
+		// 		// uint8_t status = TWSR & 0xF8;
+		// 		// if (status != TW_START && status != TW_REP_START) {
+		// 		// 	uart_printstr("Error on i2c_start()\r\n");
+		// 		// 	return ;
+		// 		// }
+		// 		_delay_ms(50);
+		// 		uint8_t data = i2c_read_nack();
+		// 		if (data == SLAVE_READY_TO_PLAY) {
+		// 			uart_printstr("MASTER is ready to play\r\n");
+		// 			g_status = START_COUNTER;
+		// 			// i2c_stop();
+		// 			// break ;
+		// 		}
+		// 		if (data == SLAVE_LOST) { /* Loose */
+		// 			uart_printstr("Slave lost\r\n");
+		// 			g_role = WAIT_START;
+		// 			g_status = NONE;
+		// 			// return ;
+		// 		}
+		// 		uart_printstr("MASTER received data\r\n");
+		// 	}
+		//
+		//
+		// 	else { /* RELEASE BUTTON SLAVE */
+		// 		uart_printstr("Slave released button\r\n");
+		// 		g_status = READY;
+		// 		// TWCR &= ~(1 << TWEA); /* Disable ACK */
+		// 		// TWCR |= (1 << TWIE);
+		// 		i2c_write(SLAVE_READY_TO_PLAY);
+		//
+		//
+		// 		// TWDR = SLAVE_READY_TO_PLAY;
+		// 		// TWCR |= (1 << TWINT) | (1 << TWEN); /* Enable TWI,
+		// 		// 									* Clear TWINT flag */
+		// 		// while(!(TWCR & (1 << TWINT))) {} /* Wait for TWI flag set */
+		//
+		//
+		// 		if ((TWSR & 0xF8) == TW_ST_DATA_NACK) {
+		// 			uart_printstr("Slave & master is ready to play\r\n");
+		// 			/* Let's play */
+		// 			// break ;
+		// 		}
+		// 		uart_printstr("Waiting for master\r\n");
+		// 	}
+		// 	_delay_ms(10);
+		// 	
+		// }
 
 	}
 }
@@ -246,6 +312,37 @@ int main() {
 				| (1 << PORTB2)
 				| (1 << PORTB4);
 		_delay_ms(100);
+		if (g_role == SLAVE) {
+			SREG &= ~(1 << 7); /* Disable global interrupts */
+			TWCR &= ~(1 << TWIE); /* Disable TWI interrupt */
+			while (1) {
+				// while ((TWSR & 0xF8) != TW_SR_SLA_ACK) {}
+				uart_printstr("Slave sending DATA\r\n");
+				i2c_write(0x23);
+				// TWDR = 0x23;
+				_delay_ms(100);
+				// while (TWSR != TW_ST_DATA_ACK) {}
+			}
+		}
+		uint8_t data;
+		if (g_role == MASTER) {
+			SREG &= ~(1 << 7); /* Disable global interrupts */
+			TWCR &= ~(1 << TWIE); /* Disable TWI interrupt */
+			while (1) {
+				// uart_printstr("Master GO START\r\n");
+				// _delay_ms(10);
+				uart_printstr("Master GO READ DATA\r\n");
+				data = i2c_read_ack();
+				uart_printstr("Master received: 0x");
+				uart_printhex(data);
+				uart_printstr("\r\n");
+				i2c_stop();
+				i2c_start();
+				uart_printstr("Master SLA_R\r\n");
+				i2c_write(SLAVE_ADDR << 1 | TW_READ);
+				_delay_ms(100);
+			}
+		}
 		if (g_role != MASTER && g_role != SLAVE) {
 			g_role = WAIT_START;
 			continue ;

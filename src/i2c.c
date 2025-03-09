@@ -6,7 +6,7 @@
 /*   By: dbaladro <dbaladro@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/03/08 17:27:28 by dbaladro          #+#    #+#             */
-/*   Updated: 2025/03/09 17:21:43 by dbaladro         ###   ########.fr       */
+/*   Updated: 2025/03/09 20:46:32 by dbaladro         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -62,7 +62,7 @@ void i2c_stop(void) {
  * @param address -- Slave address
  * @param mode -- 0 for write, 1 for read
  */
-void	i2c_write(uint8_t data) {
+void	i2c_write(unsigned char data) {
 	TWDR = data;
 	// TWCR &= ~((1 << TWSTA) | (1 << TWSTO));
 	TWCR = (1 << TWINT) | (1 << TWEN); /* Enable TWI,
@@ -76,7 +76,7 @@ void	i2c_write(uint8_t data) {
  * @return received data
  */
 uint8_t	i2c_read_ack(void) {
-	TWCR = (TWCR | (1 << TWINT) | (1 << TWEA) | (1 << TWEN)) & ~(1 << TWSTA); /* Enable TWI,
+	TWCR = (1 << TWINT) | (1 << TWEA) | (1 << TWEN); /* Enable TWI,
 																				* Clear TWINT flag
 																				* Enable ACK */
 	while (!(TWCR & (1 << TWINT))) {} /* Wait for TWI flag set */
@@ -209,8 +209,9 @@ void	i2c_switch_master_receive(void) {
 	}
 	// g_status = MASTER_RECEIVER;
 
+	TWCR |= (1 << TWEA);
 	/* DISABLE ACK */
-	TWCR &= ~(1 << TWEA);
+	// TWCR &= ~(1 << TWEA);
 
 	uart_printstr("Change to MASTER_RECEIVER\r\n");
 	return ;
