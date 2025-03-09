@@ -6,7 +6,7 @@
 /*   By: dbaladro <dbaladro@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/03/08 17:27:28 by dbaladro          #+#    #+#             */
-/*   Updated: 2025/03/09 15:52:13 by dbaladro         ###   ########.fr       */
+/*   Updated: 2025/03/09 16:21:24 by dbaladro         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -181,11 +181,9 @@ void	i2c_arbitration(void)
 	}
 	else
 	{
-		g_status = GET_SLAVE;
 		TWCR |= (1 << TWEA);
-		uart_printstr("change status to get slave\r\n");
 		g_role = SLAVE;
-		uart_printstr("I'm slave\r\n");
+		uart_printstr("I'm SLAVE\r\n");
 	}
 }
 
@@ -194,8 +192,8 @@ void	i2c_arbitration(void)
 */
 void	i2c_switch_master_receive(void) {
 	uart_printstr("Switching to master receiver\r\n");
-		uint8_t	status = TWSR & 0xF8;
 	i2c_start();
+	uint8_t	status = TWSR & 0xF8;
 	if (status != TW_START && status != TW_REP_START) { /* Check for errors */
 		g_role = WAIT_START;
 		uart_printstr("Error on i2c_start()\r\n");
@@ -209,6 +207,10 @@ void	i2c_switch_master_receive(void) {
 		return ;
 	}
 	// g_status = MASTER_RECEIVER;
+
+	/* DISABLE ACK */
+	TWCR &= ~(1 << TWEA);
+
 	uart_printstr("Change to MASTER_RECEIVER\r\n");
 	return ;
 }
