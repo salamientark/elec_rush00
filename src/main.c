@@ -6,7 +6,7 @@
 /*   By: dbaladro <dbaladro@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/03/03 16:31:16 by dbaladro          #+#    #+#             */
-/*   Updated: 2025/03/08 21:02:47 by fguarrac         ###   ########.fr       */
+/*   Updated: 2025/03/09 12:58:14 by fguarrac         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -16,6 +16,131 @@
  *  - https://ww1.microchip.com/downloads/en/DeviceDoc/ATmega48A-PA-88A-PA-168A-PA-328-P-DS-DS40002061A.pdf
 */
 
+enum e_timer
+{
+	E_4LEDS,
+	E_3LEDS,
+	E_2LEDS,
+	E_1LED,
+	E_GAME_START
+};
+
+enum e_timer	g_animationState = E_4LEDS;
+
+/* ************************************************************************** */
+/*                               COUNTDOWN                                    */
+/* ************************************************************************** */
+
+	//	Animate led (state machine)	//	Timer interrupt
+	
+	//	turn on leds D1, D2, D3, D4
+	//	delay()
+	//	turn off led D4
+	//	delay()
+	//	turn off led D3
+	//	delay()
+	//	turn off led D2
+	//	delay()
+	//	turn off led D1
+
+	//	If button pressed while state != GAME_START
+		//	Lost
+
+	//	start game
+
+ISR(TIMER1_COMPA_vect)
+{
+	switch (g_animationState)
+	{
+		case E_4LEDS:
+		{
+			PORTB ^= (1u << PORTB0);	//	Put led D1 pin high
+			PORTB ^= (1u << PORTB1);	//	Put led D2 pin high
+			PORTB ^= (1u << PORTB2);	//	Put led D3 pin high
+			PORTB ^= (1u << PORTB4);	//	Put led D4 pin high
+			g_animationState = E_3LEDS;
+			break ;
+		}
+		case E_3LEDS:
+		{
+			PORTB ^= (1u << PORTB4);	//	Put led D4 pin low
+			g_animationState = E_2LEDS;
+			break ;
+		}
+		case E_2LEDS:
+		{
+			PORTB ^= (1u << PORTB2);	//	Put led D3 pin low
+			g_animationState = E_1LED;
+			break ;
+		}
+		case E_1LED:
+		{
+			PORTB ^= (1u << PORTB1);	//	Put led D2 pin low
+			g_animationState = E_GAME_START;
+			break ;
+		}
+		case E_GAME_START:
+		{
+			PORTB ^= (1u << PORTB0);	//	Put led D1 pin high
+			TIMSK1 &= ~(1u << OCIE1A);	//	Disable interrupt on timer compare match (Lock state machine)
+			break ;
+		}
+	}
+}
+	
+static void	countdown(void)
+{
+	unsigned char	cardButton;
+
+	//	Init leds as output
+	DDRB |= (1u << DDB0);	//	Set led D1 as output (PB0)
+	DDRB |= (1u << DDB1);	//	Set led D2 as output (PB1)
+	DDRB |= (1u << DDB2);	//	Set led D3 as output (PB2)
+	DDRB |= (1u << DDB4);	//	Set led D4 as output (PB4)
+
+	//	Set led pins low
+	PORTB &= ~(1u << PORTB0);	//	Put led D1 pin low
+	PORTB &= ~(1u << PORTB1);	//	Put led D2 pin low
+	PORTB &= ~(1u << PORTB2);	//	Put led D3 pin low
+	PORTB &= ~(1u << PORTB4);	//	Put led D4 pin low
+
+	//	Init Timer/Counter
+
+		//	CTC mode
+		//	f = F_CPU / (2 * prescaler * (1 + OCR1A))
+		//	1000 * (1 + OCR1A) = F_CPU / (2 * prescaler))
+		//	1 + OCR1A = F_CPU / (2 * prescaler)
+		//	OCR1A = (F_CPU / (2 * prescaler) - 1
+		//	OCR1A = (16000000 / (2 * 256)) - 1 = 31249
+		//	OCR1A = 31249
+
+	TCCR1B |= (1u << WGM12);	//	Set CTC mode
+	TCCR1B |= (1u << CS12);		//	Set prescaler to 256
+	OCR1A = 31249;				//	Set TOP value
+	TIMSK1 |= (1u << OCIE1A);	//	Enable compare match interrupt on A
+
+	//	Enable global interrupts
+	SREG |= (1u << 7);
+
+	while (TIMSK1 & (1u << OCIE1A))
+	{
+		//	check for button press on board
+		cardButton = (PIND & (1u << PIND2));
+		if (!cardButton)
+		{
+			//	master/slave lost game
+			//	if master -> switch from MR to MT + send message to inform slave
+			//	If slave -> send LOST message to master
+		}
+		if (i2cButton)	///	Use TWI interrupt
+		{
+			//	check for button press on i2c
+			//	if master -> 
+			//	if slave -> receive message
+		}
+	}
+	//	Start game
+}
 
 /* I2C Arbitration */
 //void  i2c_arbitration(void)
@@ -122,6 +247,8 @@ void i2c_slave_init(uint8_t address){
 /*                                    MAIN                                    */
 /* ************************************************************************** */
 int main() {
+	countdown();
+	for (;;);
 	i2c_init();
 	i2c_slave_init(0x42);
 	uart_init();
