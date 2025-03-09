@@ -39,5 +39,8 @@ hex : $(OBJ_FILES)
 flash: hex
 	$(AVRDUDE) -c $(PROGRAMMER) -p m328p -b $(UART_BAUDRATE) -U flash:w:main.hex -P /dev/ttyUSB0
 
+both: flash
+	$(AVRDUDE) -c $(PROGRAMMER) -p m328p -b $(UART_BAUDRATE) -U flash:w:main.hex -P /dev/ttyUSB1
+
 clean :
 	rm main.hex main.bin

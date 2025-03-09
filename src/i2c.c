@@ -6,7 +6,7 @@
 /*   By: dbaladro <dbaladro@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/03/08 17:27:28 by dbaladro          #+#    #+#             */
-/*   Updated: 2025/03/08 18:42:23 by dbaladro         ###   ########.fr       */
+/*   Updated: 2025/03/09 01:25:05 by dbaladro         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -19,6 +19,16 @@ void i2c_init(void) {
 	/* Set SCL to 100Khhz */
 	TWBR = 1; /* Clock division factor */
 	TWSR |= (1 << TWPS1) | (1 << TWPS0); /* Set prescaler to 1024 */
+}
+
+/**
+ * @brief Initialize I2C slave
+ *
+ * @param address -- Slave address
+ */
+void i2c_slave_init(uint8_t address){
+    TWAR = (address << 1); /* load address into TWI address register */
+    TWCR = (1 << TWINT) |  (1<<TWEA) | (1<<TWIE) | (1<<TWEN); /* set the TWCR to enable address matching and enable TWI, clear TWINT, enable TWI interrupt */
 }
 
 /**
@@ -86,15 +96,16 @@ uint8_t	i2c_read_nack(void) {
  * @brief Ping an I2C addresses
  *
  * @param addr -- I2C address
+* @return 1 if address is found, else 0
  */
-void	i2c_ping_addr(uint8_t addr) {
+uint8_t	i2c_ping_addr(uint8_t addr) {
 	uart_printstr("Pinging address: 0x");
 	uart_printhex((unsigned char)addr);
+	uart_printstr("\r\n");
 	i2c_start();
 	if ((TWSR & 0xF8) != START) { /* Check for errors */
-		i2c_stop();
 		uart_printstr("Error on i2c_start()\r\n");
-		return ;
+		return (0);
 	}
 	i2c_write(addr << 1 | 0); /* General Master receive mode */
 	if ((TWSR & 0xF8) != SLA_ACK_W) { // Check for SLA+R transmitted and ACK received
@@ -102,12 +113,13 @@ void	i2c_ping_addr(uint8_t addr) {
 		uart_printstr("Address not found: 0x");
 		uart_printhex((unsigned char)addr);
 		uart_printstr("\r\n");
-		return ;
+		return (0);
 	}
 	uart_printstr("Address found: 0x");
 	uart_printhex((unsigned char)addr);
 	uart_printstr("\r\n");
 	i2c_stop();
+	return (0x01);
 }
 
 /**

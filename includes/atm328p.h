@@ -6,7 +6,7 @@
 /*   By: dbaladro <dbaladro@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/03/08 12:38:17 by dbaladro          #+#    #+#             */
-/*   Updated: 2025/03/08 19:43:39 by dbaladro         ###   ########.fr       */
+/*   Updated: 2025/03/09 00:31:36 by dbaladro         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -36,12 +36,13 @@ void	uart_printhex(unsigned char c);
 /*                                   I2C                                      */
 /* ************************************************************************** */
 void	i2c_init(void);
+void	i2c_slave_init(uint8_t address);
 void 	i2c_start(void);
 void 	i2c_stop(void);
 void	i2c_write(uint8_t data);
 uint8_t	i2c_read_ack(void);
 uint8_t	i2c_read_nack(void);
-void	i2c_ping_addr(uint8_t addr);
+uint8_t	i2c_ping_addr(uint8_t addr);
 void	i2c_ping(void);
 
 #endif
