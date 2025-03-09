@@ -6,7 +6,7 @@
 /*   By: dbaladro <dbaladro@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/03/03 16:31:16 by dbaladro          #+#    #+#             */
-/*   Updated: 2025/03/09 12:58:14 by fguarrac         ###   ########.fr       */
+/*   Updated: 2025/03/09 17:30:20 by fguarrac         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -15,6 +15,8 @@
 /** *All the information that I needed for this can be found at:
  *  - https://ww1.microchip.com/downloads/en/DeviceDoc/ATmega48A-PA-88A-PA-168A-PA-328-P-DS-DS40002061A.pdf
 */
+
+#define BUTTONPRESSED	1
 
 enum e_timer
 {
@@ -128,15 +130,73 @@ static void	countdown(void)
 		cardButton = (PIND & (1u << PIND2));
 		if (!cardButton)
 		{
-			//	master/slave lost game
-			//	if master -> switch from MR to MT + send message to inform slave
+			//	master/slave lost game	//	Check global variable to know who I am
 			//	If slave -> send LOST message to master
+			if (g_role == SLAVE)
+			{
+				//	Send message to master
+				i2c_write(BUTTONPRESSED);
+				//	Wait for NACK since only 1 byte should be sent
+				i2c_read_nack();
+				//	Turn lose led one
+				//	Restart game change program state variable
+			}
+			//	if master -> switch from MR to MT + send message to inform slave
+			else
+			{
+//				//	Send STOP or REPEATED START
+//				i2c_stop();
+				//	Tell slave to receive message
+				i2c_start();
+				//	Switch to master transmit
+				i2c_write(0x42 << 1 | TW_WRITE);
+				i2c_read_ack();
+				//	Tell master lost to slave
+				i2c_write(BUTTONPRESSED);
+				i2c_read_ack();
+				//	Stop communication
+				i2c_stop();
+				//	Turn lose led one
+				//	Restart game change program state variable
+			}
 		}
 		if (i2cButton)	///	Use TWI interrupt
 		{
-			//	check for button press on i2c
+			//	check for button press on i2c	//	Check global variable to know who I am
 			//	if master -> 
+			if (g_role == MASTER)
+			{
+				//	Stop game, turn victory led on, then start game over
+
+				//	message received from slave
+				//	Send NACK
+				TWCR &= ~(1u << TWEA)
+				i2c_write(0x42 << 1 | TW_WRITE);
+				i2c_read_ack();
+				i2c_write(TW_MT_DATA_NACK);
+				i2c_read_ack();
+				//	Send STOP
+				i2c_stop();
+				//	Turn victory led on
+				//	Restart game change program state variable
+			}
 			//	if slave -> receive message
+			else
+			{
+				//	Stop game, turn victory led on, start game over
+				//	SLA+W received
+				//	send ack
+				TWCR |= (1u << TWEA);
+				i2c_write(0);
+				//	message received
+					//	read message ?
+
+				//	send ack
+				TWCR |= (1u << TWEA);
+				i2c_write(0);
+				//	Turn victory led on
+				//	Restart game change program state variable
+			}
 		}
 	}
 	//	Start game
