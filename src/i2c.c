@@ -6,13 +6,14 @@
 /*   By: dbaladro <dbaladro@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/03/08 17:27:28 by dbaladro          #+#    #+#             */
-/*   Updated: 2025/03/09 12:41:44 by dbaladro         ###   ########.fr       */
+/*   Updated: 2025/03/09 15:52:13 by dbaladro         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
 #include "../includes/atm328p.h"
 
 extern uint8_t	g_status;
+extern uint8_t	g_role;
 
 /**
  * @brief Init I2C interface
@@ -63,6 +64,7 @@ void i2c_stop(void) {
  */
 void	i2c_write(uint8_t data) {
 	TWDR = data;
+	// TWCR &= ~((1 << TWSTA) | (1 << TWSTO));
 	TWCR = (1 << TWINT) | (1 << TWEN); /* Enable TWI,
  										* Clear TWINT flag */
 	while(!(TWCR & (1 << TWINT))) {} /* Wait for TWI flag set */
@@ -105,7 +107,8 @@ uint8_t	i2c_ping_addr(uint8_t addr) {
 	uart_printhex((unsigned char)addr);
 	uart_printstr("\r\n");
 	i2c_start();
-	if ((TWSR & 0xF8) != START) { /* Check for errors */
+	uint8_t	status = TWSR & 0xF8;
+	if (status != TW_START || status != TW_REP_START) { /* Check for errors */
 		uart_printstr("Error on i2c_start()\r\n");
 		return (0);
 	}
@@ -151,7 +154,7 @@ void	i2c_get_master(void) {
 		uart_printstr("Arbitration lost\r\n");
 		return ;
 	}
-	i2c_write(SLAVE_ADDR << 1 | 0); /* Write slave address */
+	i2c_write(SLAVE_ADDR << 1 | TW_WRITE); /* Write slave address */
 	if ((TWSR & 0xF8) != TW_MT_SLA_ACK) { // Check for SLA+R transmitted and ACK received
 		uart_printstr("Address not found: 0x");
 		uart_printhex((unsigned char)SLAVE_ADDR);
@@ -159,7 +162,10 @@ void	i2c_get_master(void) {
 		return ;
 	}
 	uart_printstr("Change status to MASTER\r\n");
-	g_status = MASTER;
+	/* Set role and status */
+	g_role = MASTER;
+	// g_status = 
+
 	return ;
 }
 
@@ -178,7 +184,7 @@ void	i2c_arbitration(void)
 		g_status = GET_SLAVE;
 		TWCR |= (1 << TWEA);
 		uart_printstr("change status to get slave\r\n");
-		g_status = SLAVE;
+		g_role = SLAVE;
 		uart_printstr("I'm slave\r\n");
 	}
 }
@@ -188,6 +194,30 @@ void	i2c_arbitration(void)
 */
 void	i2c_switch_master_receive(void) {
 	uart_printstr("Switching to master receiver\r\n");
+		uint8_t	status = TWSR & 0xF8;
+	i2c_start();
+	if (status != TW_START && status != TW_REP_START) { /* Check for errors */
+		g_role = WAIT_START;
+		uart_printstr("Error on i2c_start()\r\n");
+		return ;
+	}
+	i2c_write(SLAVE_ADDR << 1 | TW_READ); /* Write slave address */
+	if ((TWSR & 0xF8) != TW_MR_SLA_ACK) { // Check for SLA+R transmitted and ACK received
+		g_role = WAIT_START;
+		uart_printstr("Slave not found error");
+		uart_printstr("\r\n");
+		return ;
+	}
+	// g_status = MASTER_RECEIVER;
+	uart_printstr("Change to MASTER_RECEIVER\r\n");
+	return ;
+}
+
+/**
+* @brief Switch from Master Reciever to master Transmitter
+*/
+void	i2c_switch_master_transmit(void) {
+	uart_printstr("Switching to master transmitter\r\n");
 	if (g_status == MASTER) {
 		i2c_start();
 		uint8_t	status = TWSR & 0xF8;
@@ -195,14 +225,14 @@ void	i2c_switch_master_receive(void) {
 			uart_printstr("Error on i2c_start()\r\n");
 			return ;
 		}
-		i2c_write(SLAVE_ADDR << 1 | TW_READ); /* Write slave address */
+		i2c_write(SLAVE_ADDR << 1 | TW_WRITE); /* Write slave address */
 		if ((TWSR & 0xF8) != TW_MR_SLA_ACK) { // Check for SLA+R transmitted and ACK received
 			uart_printstr("Slave not found error");
 			uart_printstr("\r\n");
 			return ;
 		}
-		g_status = MASTER_RECEIVER;
-		uart_printstr("Change status to MASTER_RECEIVER\r\n");
+		// g_status = MASTER_TRANSMITER;
+		uart_printstr("Change status to MASTER_TRANSMITER\r\n");
 		return ;
 	}
 }

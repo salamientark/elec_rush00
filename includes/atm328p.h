@@ -6,7 +6,7 @@
 /*   By: dbaladro <dbaladro@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/03/08 12:38:17 by dbaladro          #+#    #+#             */
-/*   Updated: 2025/03/09 12:40:31 by dbaladro         ###   ########.fr       */
+/*   Updated: 2025/03/09 15:39:16 by dbaladro         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -19,19 +19,24 @@
 # include <util/twi.h>
 
 /* I2C MACRO */
-# define START 0x08 /* START code after START was send */
-
-#define SLAVE_ADDR 0x42
-
+/* Roles */
 #define WAIT_START 0
-#define GET_MASTER 1
-#define GET_SLAVE 2
-#define MASTER 3
-#define SLAVE 4
-#define MASTER_RECEIVER 5
-#define MASTER_TRANSMITER 6
-#define SLAVE_RECEIVER 7
-#define SLAVE_TRANSMITER 8
+#define MASTER 1
+#define SLAVE 2
+
+
+/* Status in program */
+# define NONE 0
+# define GET_MASTER 1
+# define GET_SLAVE 2
+# define READY 4
+
+# define SLAVE_ADDR 0x42
+# define SLAVE_READY_TO_PLAY 0x01
+# define SLAVE_LOST 0xF0
+# define MASTER_LOST 0xF1
+
+
 
 
 /* ************************************************************************** */
@@ -58,5 +63,6 @@ void	i2c_ping(void);
 void	i2c_get_master(void);
 void	i2c_arbitration(void);
 void	i2c_switch_master_receive(void);
+void	i2c_switch_master_transmit(void);
 
 #endif

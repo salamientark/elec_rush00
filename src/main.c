@@ -6,17 +6,14 @@
 /*   By: dbaladro <dbaladro@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/03/03 16:31:16 by dbaladro          #+#    #+#             */
-/*   Updated: 2025/03/09 12:41:02 by dbaladro         ###   ########.fr       */
+/*   Updated: 2025/03/09 15:52:32 by dbaladro         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
 #include "../includes/atm328p.h"
-#include <avr/io.h>
-#include <stdint.h>
-#include <time.h>
-#include <util/twi.h>
 
-uint8_t	g_status = WAIT_START; /* Define slave or mnaster */
+uint8_t	g_role = WAIT_START;
+uint8_t	g_status = NONE; /* Define slave or mnaster */
 
 /** *All the information that I needed for this can be found at:
  *  - https://ww1.microchip.com/downloads/en/DeviceDoc/ATmega48A-PA-88A-PA-168A-PA-328-P-DS-DS40002061A.pdf
@@ -28,38 +25,55 @@ uint8_t	g_status = WAIT_START; /* Define slave or mnaster */
 /* ************************************************************************** */
 ISR(TWI_vect) {
 	uint8_t status = TWSR & 0xF8;
-	// TWCR |= (1 << TWINT);
 	switch (status) {
 		case TW_ST_SLA_ACK:
 		case TW_SR_DATA_ACK:
-            g_status = SLAVE_RECEIVER;
+				// if (TWDR == SLAVE_LOST || TWDR == MASTER_LOST) {
+				// 	g_status = WAIT_START;
+				// 	uart_printstr("Change status to WAIT_START\r\n");
+				// }
+				// if (TWDR == SLAVE_READY_TO_PLAY) {
+				// 	g_status = SLAVE;
+				// 	uart_printstr("Change status to SLAVE\r\n");
+				// }
+            // g_status = SLAVE_RECEIVER;
+			uart_printstr("Change status to SLAVE_RECEIVER\r\n");
             TWCR = (1 << TWEN) | (1 << TWIE) | (1 << TWINT) | (1 << TWEA); // Clear interrupt flag, enable ACK
 			break ;
 
+		case TW_ST_DATA_ACK:
+			// if (g_status == SLAVE) {
+			// 	if (TWDR == SLAVE_LOST || TWDR == MASTER_LOST) {
+			// 		g_status = WAIT_START;
+			// 		uart_printstr("Change status to WAIT_START\r\n");
+			// 	}
+			// 	if (TWDR == SLAVE_READY_TO_PLAY) {
+			// 		g_status = SLAVE;
+			// 		uart_printstr("Change status to SLAVE\r\n");
+			// 	}
+				uart_printstr("Slave received: 0x");
+			// }
+            TWCR = (1 << TWEN) | (1 << TWIE) | (1 << TWINT) | (1 << TWEA); // Clear interrupt flag, enable ACK
+			break ;
 		case TW_SR_STOP:
 			TWCR = (1 << TWEN) | (1 << TWIE) | (1 << TWINT) | (1 << TWEA); // Clear interrupt flag, enable ACK
 			break ;
-
 		default:
             TWCR = (1 << TWEN) | (1 << TWIE) | (1 << TWINT) | (1 << TWEA); // Clear interrupt flag, enable ACK
-			uart_printstr("Error\r\n");
+			uart_printstr("Error or default\r\n");
 			break;
 	}
-	// TWCR |= (1 << TWINT);
-	// TWCR = (1 << TWINT) | (1 << TWEN) | (1 << TWEA) | (1 << TWIE);
 }
-
-
 
 /* I2C Arbitration */
 
 /**
  * @brief Read button status
  *
-* @param pin_x the pin register
-* @param pin_x_bit the pin bit
-* @return 1 if button is pressed, else 0
-*/
+ * @param pin_x the pin register
+ * @param pin_x_bit the pin bit
+ * @return 1 if button is pressed, else 0
+ */
 uint8_t getButtonStatus(uint8_t pin_x, uint8_t port_bit) {
 	return (pin_x & (1 << port_bit)); /* Read the port_bit position of the pin_x register */
 }
@@ -67,7 +81,7 @@ uint8_t getButtonStatus(uint8_t pin_x, uint8_t port_bit) {
 /**
 * @brief wait for the game start
 */
-void	wait(void) {
+void	get_role(void) {
 	uint8_t	b1_last_state = 1;
 	uint8_t	b1_state = 1;
 
@@ -76,9 +90,10 @@ void	wait(void) {
 			& ~(1 << PORTB2)
 			& ~(1 << PORTB4);
 	/* Wait for start */
-	while (g_status != MASTER && g_status != SLAVE) {
+	while (g_role != MASTER && g_role != SLAVE) {
 		b1_state = getButtonStatus(PIND, 2);
-		if (b1_state == 0) {
+
+		if (b1_state == 0) { /* Pressed button */
 			if (b1_last_state == 1) {
 				_delay_ms(20);
 				i2c_arbitration();
@@ -87,61 +102,99 @@ void	wait(void) {
 			if (g_status == GET_MASTER)
 				i2c_get_master();
 		}
-		if (b1_state && b1_last_state == 0) {
+		if (b1_state && b1_last_state == 0) { /* Released button */
 			if (g_status == GET_MASTER)
 				i2c_stop();
 			TWCR &= ~(1 << TWEA); /* Disable ACK */
 			b1_last_state = 1;
-			g_status = WAIT_START;
+
+			/* Reset Role and status */
+			g_role = WAIT_START; /* Change role to init */
+			g_status = NONE;
+
 			uart_printstr(" Change Status to WAIT_START\r\n");
 			_delay_ms(20);
 		}
 		_delay_ms(10);
 	}
+	if (g_role == MASTER)
+		i2c_stop();
 }
 
 
 /**
  * @brief Get ready to play
  */
-void	get_ready(void) {
-	uint8_t b1_last_state = 0;
-	uint8_t b1_state = 0;
-	uart_printstr("Get ready to play\r\n");
-	while (1) {
-		b1_state = getButtonStatus(PIND, 2);
-		if (b1_state == 0 && b1_last_state == 1){ /* Repress */
-			/* Player lose */
-		}
-		if (b1_state == 1) { /* Unhold button */
-			if (g_status == MASTER_RECEIVER) {
-				/* Wait for ping
-				 * if press
-				 *  - loose
-				 * if no ping
-				 *  - wait
-				 * if ping
-				 *  - Check release
-				 */
-				if (TWCR & (1 << TWINT))
-				continue ;
-			}
-			else {
-				/* On release
-				 * Ping
-				 *  if press
-				 *   - Loose
-				 *  if NACK
-				 *   - Ping again
-				 *  if ACK
-				 *   - Lets Play !
-				 */
-				continue ;
-			}
-			
-		}
-	}
-}
+// void	get_ready(void) {
+// 	uint8_t b1_last_state = 0;
+// 	uint8_t b1_state = 0;
+// 	uart_printstr("Get ready to play\r\n");
+// 	while (1) {
+// 		if (g_status == WAIT_START)
+// 			break ;
+// 		b1_state = getButtonStatus(PIND, 2);
+//
+// 		if (!b1_state && b1_last_state == 1){ /* Repress */
+// 			if (g_status == MASTER_RECEIVER) {
+// 				uart_printstr("Master pressed again\r\n");
+// 				/*
+// 				 * Switch to master transmitter
+// 				 * Send info that it lost
+// 				 * back to beginiing of the program */
+// 				i2c_switch_master_transmit();
+// 				i2c_write(MASTER_LOST);
+// 				i2c_stop();
+// 				g_status = WAIT_START;
+// 			}
+// 			else {
+// 				uart_printstr("slave pressed again\r\n");
+// 				g_status = WAIT_START;
+// 				TWDR = SLAVE_LOST;
+// 				break ;
+// 			}
+// 		}
+//
+// 		if (b1_state) { /* Unhold button */
+// 			b1_last_state = 1;
+// 			if (g_status == MASTER_RECEIVER) {
+// 				uart_printstr("Master released button\r\n");
+// 				i2c_start();
+// 				i2c_write(SLAVE_ADDR << 1 | TW_READ);
+// 				TWCR |= (1 << TWEA);
+// 				uint8_t status = TWSR & 0xF8;
+// 				if (status != TW_START && status != TW_REP_START) {
+// 					uart_printstr("Error on i2c_start()\r\n");
+// 					return ;
+// 				}
+// 				uint8_t data = i2c_read_ack();
+// 				if (data == SLAVE_READY_TO_PLAY) {
+// 					uart_printstr("MASTER is ready to play\r\n");
+// 					g_status = MASTER_RECEIVER;
+// 					// i2c_stop();
+// 					break ;
+// 				}
+// 				if (data == SLAVE_LOST) { /* Loose */
+// 					uart_printstr("Slave lost\r\n");
+// 					g_status = WAIT_START;
+// 					return ;
+// 				}
+// 			}
+// 			else {
+// 				uart_printstr("Slave released button\r\n");
+// 				TWCR |= (1 << TWIE);
+// 				// i2c_write(SLAVE_READY_TO_PLAY);
+// 				// if ((TWSR & 0xF8) == TW_ST_DATA_ACK) {
+// 				// 	uart_printstr("Slave & master is ready to play\r\n");
+// 				// 	/* Let's play */
+// 				// 	break ;
+// 				// }
+// 				uart_printstr("Waiting for master\r\n");
+// 			}
+// 			_delay_ms(10);
+// 			
+// 		}
+// 	}
+// }
 
 
 /* ************************************************************************** */
@@ -160,20 +213,21 @@ int main() {
 	DDRB |= (1 << DDB4) | (1 << DDB2) | (1 << DDB1) | (1 << DDB0); /* Set pin 0 of port B as input */
 	/* Lets ping */
 	while (1) {
-		wait();
+		get_role();
 		PORTB |= (1 << PORTB0) /* Turrn on LED */
 				| (1 << PORTB1)
 				| (1 << PORTB2)
 				| (1 << PORTB4);
 		_delay_ms(100);
-		if (g_status == MASTER){
-			i2c_switch_master_receive();
-		}
-		if (g_status != MASTER_RECEIVER && g_status != SLAVE) {
-			g_status = WAIT_START;
-			continue ;
-		}
-		get_ready();
+		// if (g_role == MASTER)
+		// 	i2c_switch_master_receive();
+		// if (g_role != MASTER && g_role != SLAVE) {
+		// 	g_role = WAIT_START;
+		// 	continue ;
+		// }
+		// get_ready();
+		// if (g_role == WAIT_START)
+		// 	continue ;
 
 		_delay_ms(1000);
 	}
