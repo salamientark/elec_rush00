@@ -6,11 +6,13 @@
 /*   By: dbaladro <dbaladro@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/03/08 17:27:28 by dbaladro          #+#    #+#             */
-/*   Updated: 2025/03/09 01:25:05 by dbaladro         ###   ########.fr       */
+/*   Updated: 2025/03/09 12:41:44 by dbaladro         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
 #include "../includes/atm328p.h"
+
+extern uint8_t	g_status;
 
 /**
  * @brief Init I2C interface
@@ -108,7 +110,7 @@ uint8_t	i2c_ping_addr(uint8_t addr) {
 		return (0);
 	}
 	i2c_write(addr << 1 | 0); /* General Master receive mode */
-	if ((TWSR & 0xF8) != SLA_ACK_W) { // Check for SLA+R transmitted and ACK received
+	if ((TWSR & 0xF8) != TW_MT_SLA_ACK) { // Check for SLA+R transmitted and ACK received
 		i2c_stop();
 		uart_printstr("Address not found: 0x");
 		uart_printhex((unsigned char)addr);
@@ -129,5 +131,78 @@ void	i2c_ping(void) {
 	for (uint8_t i = 0 ;i < 128; i++) {
 		i2c_ping_addr(i);
 		_delay_ms(10);
+	}
+}
+
+/**
+ * @brief Get master status
+ *
+* @return 1 if master, else 0
+ */
+void	i2c_get_master(void) {
+	i2c_start(); /* Initiate conversation */
+	uart_printstr("Start conversation\r\n");
+	uint8_t status = TWSR & 0xF8;
+	if (status != TW_START && status != TW_REP_START) { /* Check for errors */
+		uart_printstr("Error on i2c_start()\r\n");
+		return ;
+	}
+	if (status == 0x38){
+		uart_printstr("Arbitration lost\r\n");
+		return ;
+	}
+	i2c_write(SLAVE_ADDR << 1 | 0); /* Write slave address */
+	if ((TWSR & 0xF8) != TW_MT_SLA_ACK) { // Check for SLA+R transmitted and ACK received
+		uart_printstr("Address not found: 0x");
+		uart_printhex((unsigned char)SLAVE_ADDR);
+		uart_printstr("\r\n");
+		return ;
+	}
+	uart_printstr("Change status to MASTER\r\n");
+	g_status = MASTER;
+	return ;
+}
+
+/**
+ * @brief Check for arbitration
+ */
+void	i2c_arbitration(void)
+{
+	/*	Read SDA state */
+	if ((PINC & (1u << PINC4) && (PINC & (1u << PINC5)))) {
+		g_status = GET_MASTER;
+		uart_printstr("Change status to GET_MASTER\r\n");
+	}
+	else
+	{
+		g_status = GET_SLAVE;
+		TWCR |= (1 << TWEA);
+		uart_printstr("change status to get slave\r\n");
+		g_status = SLAVE;
+		uart_printstr("I'm slave\r\n");
+	}
+}
+
+/**
+* @brief Switch from Master transmit to master receiver
+*/
+void	i2c_switch_master_receive(void) {
+	uart_printstr("Switching to master receiver\r\n");
+	if (g_status == MASTER) {
+		i2c_start();
+		uint8_t	status = TWSR & 0xF8;
+		if (status != TW_START && status != TW_REP_START) { /* Check for errors */
+			uart_printstr("Error on i2c_start()\r\n");
+			return ;
+		}
+		i2c_write(SLAVE_ADDR << 1 | TW_READ); /* Write slave address */
+		if ((TWSR & 0xF8) != TW_MR_SLA_ACK) { // Check for SLA+R transmitted and ACK received
+			uart_printstr("Slave not found error");
+			uart_printstr("\r\n");
+			return ;
+		}
+		g_status = MASTER_RECEIVER;
+		uart_printstr("Change status to MASTER_RECEIVER\r\n");
+		return ;
 	}
 }
