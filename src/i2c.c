@@ -6,7 +6,7 @@
 /*   By: dbaladro <dbaladro@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/03/08 17:27:28 by dbaladro          #+#    #+#             */
-/*   Updated: 2025/03/09 16:21:24 by dbaladro         ###   ########.fr       */
+/*   Updated: 2025/03/09 17:21:43 by dbaladro         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -191,14 +191,15 @@ void	i2c_arbitration(void)
 * @brief Switch from Master transmit to master receiver
 */
 void	i2c_switch_master_receive(void) {
-	uart_printstr("Switching to master receiver\r\n");
 	i2c_start();
+	uart_printstr("Switching to master receiver\r\n");
 	uint8_t	status = TWSR & 0xF8;
 	if (status != TW_START && status != TW_REP_START) { /* Check for errors */
 		g_role = WAIT_START;
 		uart_printstr("Error on i2c_start()\r\n");
 		return ;
 	}
+	uart_printstr("Start conversation\r\n");
 	i2c_write(SLAVE_ADDR << 1 | TW_READ); /* Write slave address */
 	if ((TWSR & 0xF8) != TW_MR_SLA_ACK) { // Check for SLA+R transmitted and ACK received
 		g_role = WAIT_START;

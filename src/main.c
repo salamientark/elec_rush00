@@ -6,11 +6,12 @@
 /*   By: dbaladro <dbaladro@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/03/03 16:31:16 by dbaladro          #+#    #+#             */
-/*   Updated: 2025/03/09 16:36:23 by dbaladro         ###   ########.fr       */
+/*   Updated: 2025/03/09 17:21:02 by dbaladro         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
 #include "../includes/atm328p.h"
+#include <avr/io.h>
 
 uint8_t	g_role = WAIT_START;
 uint8_t	g_status = NONE; /* Define slave or mnaster */
@@ -156,6 +157,7 @@ void	get_ready(void) {
 				// break ;
 			}
 		}
+
 		if (b1_state) { /* Unhold button */
 			b1_last_state = 1;
 
@@ -192,7 +194,13 @@ void	get_ready(void) {
 				g_status = READY;
 				// TWCR &= ~(1 << TWEA); /* Disable ACK */
 				// TWCR |= (1 << TWIE);
-				i2c_write(SLAVE_READY_TO_PLAY);
+				// i2c_write(SLAVE_READY_TO_PLAY);
+				TWDR = SLAVE_READY_TO_PLAY;
+				TWCR |= (1 << TWINT) | (1 << TWEN); /* Enable TWI,
+													* Clear TWINT flag */
+				while(!(TWCR & (1 << TWINT))) {} /* Wait for TWI flag set */
+
+
 				if ((TWSR & 0xF8) == TW_ST_DATA_NACK) {
 					uart_printstr("Slave & master is ready to play\r\n");
 					/* Let's play */
@@ -207,7 +215,6 @@ void	get_ready(void) {
 	}
 }
 
-
 /* ************************************************************************** */
 /*                                    MAIN                                    */
 /* ************************************************************************** */
@@ -219,24 +226,29 @@ int main() {
 	TWAR = (SLAVE_ADDR << 1); /* load address into TWI address register */
 	TWCR = (1 << TWINT) | (1<<TWIE) | (1<<TWEN); /* set the TWCR to enable address matching and enable TWI, clear TWINT, enable TWI interrupt */
 
-	// SREG |= (1 << 7); /* Enable global interrupts */
+	SREG |= (1 << 7); /* Enable global interrupts */
 
 	DDRB |= (1 << DDB4) | (1 << DDB2) | (1 << DDB1) | (1 << DDB0); /* Set pin 0 of port B as input */
+	DDRD = 0b01101000; /// Set RGB LED as outputs in the DATA_DIRECTION_REGISTER
 	/* Lets ping */
 	while (1) {
+		PORTD = 0b00000000; /// Turn off the RGB LED
 		get_role();
 		PORTB |= (1 << PORTB0) /* Turrn on LED */
 				| (1 << PORTB1)
 				| (1 << PORTB2)
 				| (1 << PORTB4);
 		_delay_ms(100);
-		if (g_role == MASTER)
-			i2c_switch_master_receive();
-		else
-			TWCR = (1 << TWEN) | (0 << TWIE) | (1 << TWINT) | (1 << TWEA); /* Clear interrupt flag, enable ACK */
 		if (g_role != MASTER && g_role != SLAVE) {
 			g_role = WAIT_START;
 			continue ;
+		}
+		if (g_role == MASTER)
+			i2c_switch_master_receive();
+		else {
+			TWCR |= (1 << TWEN);
+			_delay_ms(100);
+			TWCR = (1 << TWEN) | (0 << TWIE) | (0 << TWINT) | (0 << TWEA); /* Clear interrupt flag, enable ACK */
 		}
 		/* OK */
 
@@ -244,6 +256,8 @@ int main() {
 		// if (g_role == WAIT_START)
 		// 	continue ;
 
+
+		PORTD = 0b00100000; /// Turn on the RGB LED
 		_delay_ms(1000);
 	}
 	return (0);
