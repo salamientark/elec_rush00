@@ -6,7 +6,7 @@
 /*   By: dbaladro <dbaladro@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/03/03 16:31:16 by dbaladro          #+#    #+#             */
-/*   Updated: 2025/03/09 17:21:02 by dbaladro         ###   ########.fr       */
+/*   Updated: 2025/03/09 17:30:23 by dbaladro         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -121,6 +121,11 @@ void	get_role(void) {
 		}
 		_delay_ms(10);
 	}
+
+	if (g_role == SLAVE)
+		TWCR = (1 << TWEN) | (1 << TWIE) | (0 << TWINT) | (1 << TWEA); /* Clear interrupt flag, enable ACK */
+	if (g_role == MASTER)
+		i2c_switch_master_receive();
 }
 
 
@@ -163,8 +168,8 @@ void	get_ready(void) {
 
 			if (g_role == MASTER) { /* RELEASE BUTTON MASTER */
 				uart_printstr("Master released button\r\n");
-				i2c_start();
-				i2c_write(SLAVE_ADDR << 1 | TW_READ);
+				// i2c_start();
+				// i2c_write(SLAVE_ADDR << 1 | TW_READ);
 				// TWCR |= (1 << TWEA);
 				// uint8_t status = TWSR & 0xF8;
 				// if (status != TW_START && status != TW_REP_START) {
@@ -194,11 +199,13 @@ void	get_ready(void) {
 				g_status = READY;
 				// TWCR &= ~(1 << TWEA); /* Disable ACK */
 				// TWCR |= (1 << TWIE);
-				// i2c_write(SLAVE_READY_TO_PLAY);
-				TWDR = SLAVE_READY_TO_PLAY;
-				TWCR |= (1 << TWINT) | (1 << TWEN); /* Enable TWI,
-													* Clear TWINT flag */
-				while(!(TWCR & (1 << TWINT))) {} /* Wait for TWI flag set */
+				i2c_write(SLAVE_READY_TO_PLAY);
+
+
+				// TWDR = SLAVE_READY_TO_PLAY;
+				// TWCR |= (1 << TWINT) | (1 << TWEN); /* Enable TWI,
+				// 									* Clear TWINT flag */
+				// while(!(TWCR & (1 << TWINT))) {} /* Wait for TWI flag set */
 
 
 				if ((TWSR & 0xF8) == TW_ST_DATA_NACK) {
@@ -242,13 +249,6 @@ int main() {
 		if (g_role != MASTER && g_role != SLAVE) {
 			g_role = WAIT_START;
 			continue ;
-		}
-		if (g_role == MASTER)
-			i2c_switch_master_receive();
-		else {
-			TWCR |= (1 << TWEN);
-			_delay_ms(100);
-			TWCR = (1 << TWEN) | (0 << TWIE) | (0 << TWINT) | (0 << TWEA); /* Clear interrupt flag, enable ACK */
 		}
 		/* OK */
 
